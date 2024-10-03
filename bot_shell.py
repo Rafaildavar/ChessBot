@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram import F
 
-TOKEN = '7735863677:AAELZ8O2QNCsQxkvDr0CMpqotJ7Xg4k7DiM'
+TOKEN = '7204698741:AAGCxZSZysPKJYEgl90d9pNRxKqwaTNJbHE'
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
@@ -14,10 +14,34 @@ dp = Dispatcher()
 async def start_command(message: types.Message):
     await message.answer("Привет! Давай сыграем в шахматы?")
     start_button = InlineKeyboardButton(text="Начать игру", callback_data="start_game")
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[start_button]])
+    rank_button = InlineKeyboardButton(text="🎖Рейтинговая игра", callback_data="rank_game")
+    public_button = InlineKeyboardButton(text="Товарищеская игра", callback_data="public_game")
+    practice_button = InlineKeyboardButton(text="🤖Игра с ботом", callback_data="practice_game")
+    profile_button = InlineKeyboardButton(text="Мой профиль", callback_data="profile")
+    clan_button = InlineKeyboardButton(text="Добавить в клан", callback_data="clan")
+    FriendGame_button = InlineKeyboardButton(text="Игра с другом", callback_data="friendGame")
+    setting_button = InlineKeyboardButton(text="🛠Настройки", callback_data="setting")
+    top100_button = InlineKeyboardButton(text="🏆Топ 100 игроков", callback_data="top100")
+    shop_button = InlineKeyboardButton(text="💰Магазин", callback_data="shop")
+    myBalance_button = InlineKeyboardButton(text="💎Мой баланс", callback_data="myBalance")
+    feadback_button = InlineKeyboardButton(text="💬Оставить отзыв", callback_data="feadback")
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [start_button],
+        [profile_button],
+        [clan_button,FriendGame_button],
+        [public_button,rank_button],
+        [shop_button,myBalance_button],
+        [practice_button],
+        [feadback_button,setting_button],
+        [top100_button]
+    ])
+
     await message.answer("Нажми кнопку, чтобы начать:", reply_markup=keyboard)
 
-
+@dp.callback_query(F.data == 'profile')
+async def profile(callback_query: types.CallbackQuery):
+    await callback_query.answer()
 # Обработчик нажатия "Начать игру"
 @dp.callback_query(F.data == 'start_game')
 async def start_game(callback_query: types.CallbackQuery):
