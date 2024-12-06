@@ -1,3 +1,6 @@
+import dp
+import asyncio
+import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
@@ -6,7 +9,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
 from sqlalchemy.future import select
 from db import session_maker, User, Feedback, ClanMember, Clan, ShopItem
-import asyncio
+from sqlalchemy.exc import SQLAlchemyError
 from aiogram import F
 from datetime import datetime, timedelta
 from sqlalchemy import and_
@@ -24,6 +27,12 @@ class ProfileState(StatesGroup):
     waiting_for_username = State()
     waiting_for_telegram_name = State()
 TOKEN = os.getenv('token')
+
+# Состояния для FSM
+class ClanState(StatesGroup):
+    enter_name = State()
+    confirm_join = State()
+
 
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
@@ -77,7 +86,46 @@ async def process_username(message: types.Message, state: FSMContext):
     await message.answer("Введите ваш username в Telegram:")
     await state.set_state(ProfileState.waiting_for_telegram_name)
 
-
+# from sqlalchemy.future import select
+#
+#
+# @dp.callback_query(F.data.startswith("members_"))
+# async def list_clan_members(callback: types.CallbackQuery):
+#     clan_id = int(callback.data.split("_")[1])  # Извлекаем ID клана
+#
+#     async with session_maker() as session:
+#         try:
+#             # Проверяем, существует ли клан
+#             clan_result = await session.execute(
+#                 select(Clan).where(Clan.clan_id == clan_id)
+#             )
+#             clan = clan_result.scalars().first()
+#             if not clan:
+#                 await callback.message.edit_text("Клан не найден.")
+#                 return
+#
+#             # Получаем участников клана
+#             members_result = await session.execute(
+#                 select(ClanMember.user_id).where(ClanMember.clan_id == clan_id)
+#             )
+#             members = members_result.scalars().all()
+#
+#             # Если в клане нет участников
+#             if not members:
+#                 await callback.message.edit_text(f"В клане '{clan.name}' пока нет участников.")
+#                 return
+#
+#             # Формируем список участников
+#             members_list = "\n".join([f"- {member}" for member in members])
+#
+#             # Отправляем пользователю список участников
+#             await callback.message.edit_text(
+#                 f"Список участников клана '{clan.name}':\n{members_list}"
+#             )
+#         except Exception as e:
+#             # Обрабатываем ошибки
+#             logging.exception(f"Error fetching members for clan {clan_id}: {e}")
+#             await callback.message.edit_text("Произошла ошибка при получении списка участников.")
 # Обработчик ввода telegram имени
 @dp.message(ProfileState.waiting_for_telegram_name)
 async def process_telegram_name(message: types.Message, state: FSMContext):
@@ -101,6 +149,211 @@ async def process_telegram_name(message: types.Message, state: FSMContext):
             await message.answer(f"Произошла ошибка: {str(e)}")
 
     await state.clear()
+
+
+clan_actions = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Создать клан", callback_data="create_clan")],
+    [InlineKeyboardButton(text="Вступить в клан", callback_data="join_clan")]
+])
+
+# Обработчик кнопки "Кланы"
+@dp.callback_query(F.data == "clan")
+async def handle_clan_button(callback: types.CallbackQuery):
+    await callback.message.edit_text("Выберите действие:", reply_markup=clan_actions)
+
+
+# Обработчик кнопки "Создать клан"
+@dp.callback_query(F.data == "create_clan")
+async def process_create_clan(callback: types.CallbackQuery, state: FSMContext):
+    await callback.message.edit_text("Введите название для вашего клана:")
+    await state.set_state(ClanState.enter_name)
+
+@dp.message(ClanState.enter_name)
+async def process_clan_name(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    clan_name = message.text
+
+    async with session_maker() as session:
+        try:
+            # Проверяем уникальность имени клана
+            result = await session.execute(select(Clan).where(Clan.name == clan_name))
+            if result.scalars().first():
+                await message.answer("Клан с таким названием уже существует. Попробуйте другое.")
+                return
+
+            # Создаем новый клан
+            new_clan = Clan(name=clan_name, leader_id=user_id)
+            session.add(new_clan)
+            await session.commit()
+
+            await message.answer(f"Клан '{clan_name}' успешно создан!")
+        except Exception as e:
+            await message.answer(f"Произошла ошибка при создании клана: {str(e)}")
+
+    await state.clear()
+
+
+@dp.callback_query(F.data == "join_clan")
+async def process_list_clans(callback: types.CallbackQuery, state: FSMContext):
+    async with session_maker() as session:
+        try:
+            # Получаем список доступных кланов
+            result = await session.execute(select(Clan))
+            clans = result.scalars().all()
+
+            if not clans:
+                await callback.message.edit_text("Нет доступных кланов для вступления.")
+                return
+
+            # Создаем клавиатуру с доступными кланами
+            clan_buttons = [
+                [InlineKeyboardButton(text=clan.name, callback_data=f"join_{clan.clan_id}")]
+                for clan in clans
+            ]
+            clan_list_kb = InlineKeyboardMarkup(inline_keyboard=clan_buttons)
+
+            await callback.message.edit_text("Выберите клан для вступления:", reply_markup=clan_list_kb)
+        except Exception as e:
+            await callback.message.edit_text(f"Произошла ошибка: {str(e)}")
+
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("bot_errors.log"),  # Логи записываются в файл
+        logging.StreamHandler()  # Логи выводятся в консоль
+    ]
+)
+
+@dp.callback_query(F.data.startswith("join_"))
+async def join_clan(callback: types.CallbackQuery):
+    clan_id = int(callback.data.split("_")[1])  # Извлекаем ID клана
+    user_id = callback.from_user.id  # ID пользователя
+
+    async with session_maker() as session:  # Создаём сессию
+        try:
+            logging.info(f"User {user_id} attempting to join clan {clan_id}")
+
+            # Проверяем, состоит ли пользователь уже в каком-либо клане
+            existing_member = await session.execute(
+                select(ClanMember).where(ClanMember.user_id == user_id)
+            )
+            if existing_member.scalars().first():
+                await callback.message.edit_text("Вы уже состоите в клане.")
+                logging.warning(f"User {user_id} already in a clan")
+                return
+
+            # Проверяем, существует ли клан
+            clan_result = await session.execute(
+                select(Clan).where(Clan.clan_id == clan_id)
+            )
+            clan = clan_result.scalars().first()
+            if not clan:
+                await callback.message.edit_text("Клан не найден.")
+                logging.error(f"Clan with ID {clan_id} not found")
+                return
+
+            # Добавляем пользователя в клан
+            new_member = ClanMember(clan_id=clan_id, user_id=user_id)
+            session.add(new_member)
+            await session.commit()
+            logging.info(f"User {user_id} successfully joined clan {clan.name}")
+
+            # Уведомляем пользователя о вступлении
+            await callback.message.edit_text(f"Вы успешно вступили в клан '{clan.name}'!")
+        except SQLAlchemyError as db_error:
+            # Логируем ошибки SQLAlchemy
+            logging.error(f"Database error: {db_error}")
+            await callback.message.edit_text("Произошла ошибка при работе с базой данных.")
+        except Exception as e:
+            # Логируем любые другие ошибки
+            logging.exception(f"Unexpected error for user {user_id} joining clan {clan_id}: {e}")
+            await callback.message.edit_text(f"Произошла ошибка: {str(e)}")
+
+
+# @dp.callback_query(F.data.startswith("join_clan"))
+# async def join_clan(callback: types.CallbackQuery):
+#     clan_id = int(callback.data.split("_")[1])  # Извлекаем ID клана
+#     user_id = callback.from_user.id  # ID пользователя
+#
+#     async with session_maker() as session:  # Создаём сессию
+#         try:
+#             # Проверяем, состоит ли пользователь уже в каком-либо клане
+#             existing_member = await session.execute(
+#                 select(ClanMember).where(ClanMember.user_id == user_id)
+#             )
+#             if existing_member.scalars().first():
+#                 await callback.message.edit_text("Вы уже состоите в клане.")
+#                 return
+#
+#             # Проверяем, существует ли клан
+#             clan_result = await session.execute(
+#                 select(Clan).where(Clan.clan_id == clan_id)
+#             )
+#             clan = clan_result.scalars().first()
+#             if not clan:
+#                 await callback.message.edit_text("Клан не найден.")
+#                 return
+#
+#             # Добавляем пользователя в клан
+#             new_member = ClanMember(clan_id=clan_id, user_id=user_id)
+#             session.add(new_member)
+#             await session.commit()
+#
+#             # Уведомляем пользователя о вступлении
+#             await callback.message.edit_text(f"Вы успешно вступили в клан '{clan.name}'!")
+#         except Exception as e:
+#             # Обрабатываем ошибки
+#             await callback.message.edit_text(f"Произошла ошибка: {str(e)}")
+# @dp.callback_query(F.data.startswith("join_"))
+# async def process_join_clan(callback: types.CallbackQuery, state: FSMContext):
+#     try:
+#         clan_id = int(callback.data.split("_")[1])
+#         user_id = callback.from_user.id
+#         user_name = callback.from_user.full_name
+#
+#         async with session_maker() as session:
+#             # Проверяем, состоит ли пользователь уже в клане
+#             result = await session.execute(select(ClanMember).where(ClanMember.user_id == user_id))
+#             if result.scalars().first():
+#                 await callback.message.edit_text("Вы уже состоите в клане.")
+#                 return
+#
+#             # Получаем информацию о клане
+#             clan_result = await session.execute(select(Clan).where(Clan.clan_id == clan_id))
+#             clan = clan_result.scalars().first()
+#             if not clan:
+#                 await callback.message.edit_text("Клан не найден.")
+#                 return
+#
+#             # Уведомляем главу клана о запросе на вступление
+#             leader_id = clan.leader_id
+#             approve_buttons = InlineKeyboardMarkup(
+#                 inline_keyboard=[
+#                     [
+#                         InlineKeyboardButton(text="Принять", callback_data=f"approve_{user_id}_{clan_id}"),
+#                         InlineKeyboardButton(text="Отклонить", callback_data=f"reject_{user_id}_{clan_id}")
+#                     ]
+#                 ]
+#             )
+#
+#             await bot.send_message(
+#                 chat_id=leader_id,
+#                 text=f"Пользователь {user_name} хочет вступить в ваш клан '{clan.name}'. Что вы хотите сделать?",
+#                 reply_markup=approve_buttons
+#             )
+#
+#             await callback.message.edit_text(f"Запрос на вступление в клан '{clan.name}' отправлен главе клана. Ожидайте ответа.")
+#     except ValueError:
+#         await callback.message.edit_text("Некорректный идентификатор клана.")
+#     except Exception as e:
+#         await callback.message.edit_text(f"Произошла ошибка: {str(e)}")
+
+
+
+
 
 # Команда /start
 @dp.message(Command('start'))
