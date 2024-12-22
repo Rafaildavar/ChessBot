@@ -8,6 +8,8 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy import and_
 from sqlalchemy.future import select
 
+
+from aiogram.types import ContentType
 from database.db import User, Feedback, Statistic
 from database.db import session_maker
 from gameLogic.game import Lobby
@@ -107,22 +109,31 @@ async def save_feedback(message: types.Message, state: FSMContext):
             await state.clear()  # В случае ошибки или успешного добавления отзыва очищаем состояние
 
 
-# Получение кода игры от пользователя
-@message_router.message()
-async def handle_game_code(message: types.Message):
-    game_code: str = message.text.strip()
-    user_id: int = message.from_user.id
-    if len(game_code) != 5 or not game_code.isdigit():
-        return
+# # Получение кода игры от пользователя
+# @message_router.message()
+# async def handle_game_code(message: types.Message):
+#     game_code: str = message.text.strip()
+#     user_id: int = message.from_user.id
+#     if len(game_code) != 5 or not game_code.isdigit():
+#         return
+#
+#     lobby: Lobby = next(filter(lambda s_lobby: s_lobby.private and
+#                                                s_lobby.private_code == game_code and
+#                                                s_lobby.first_player != user_id,
+#                                lobbies), None)
+#     if lobby is None:
+#         return
+#
+#     game = lobby.start_game(user_id)
+#     lobbies.remove(lobby)
+#     games.append(game)
+#     await send_board(game)
 
-    lobby: Lobby = next(filter(lambda s_lobby: s_lobby.private and
-                                               s_lobby.private_code == game_code and
-                                               s_lobby.first_player != user_id,
-                               lobbies), None)
-    if lobby is None:
-        return
 
-    game = lobby.start_game(user_id)
-    lobbies.remove(lobby)
-    games.append(game)
-    await send_board(game)
+@message_router.message(F.content_type == ContentType.SUCCESSFUL_PAYMENT)
+async def successful_payment(message: types.Message):
+    payment_info = message.successful_payment.total_amount # Получаем информацию о платеже
+    amount =  payment_info // 100  # Сумма в рублях
+    # payload = payment_info['invoice_payload']  # Полезная нагрузка
+
+    await message.answer(f"Оплат на сумму {amount} рублей прошла успешно!")

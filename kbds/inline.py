@@ -35,3 +35,9 @@ stat_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
 
 ])
+keyboards = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Купить 50💎", callback_data="Bbuy_50")],
+        [InlineKeyboardButton(text="Купить 100💎", callback_data="Bbuy_100")],
+        [InlineKeyboardButton(text="Купить 500💎", callback_data="Bbuy_500")],
+        [InlineKeyboardButton(text="Купить 1000💎", callback_data="Bbuy_1000")]
+    ])

@@ -5,17 +5,18 @@ from aiogram import F
 from aiogram import Router, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
 from chess import Piece
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
 
+from market.market import buy_options,PAYMENTS_PROVIDER_TOKEN
 from config import bot
 from database.db import User, ClanMember, Clan, ShopItem, Purchase, Statistic
 from database.db import session_maker
 from gameLogic.game import Lobby
 from kbds.State import FeedbackState, ProfileState, ClanState, PublicState
-from kbds.inline import clan_actions, stat_keyboard, main_menu_keyboard
+from kbds.inline import clan_actions, stat_keyboard, main_menu_keyboard,keyboards
 from utils.game_relation import get_game, board_update, send_board, games, lobbies
 
 callback_router = Router()
@@ -204,34 +205,34 @@ async def process_list_clans(callback: types.CallbackQuery):
             await callback.message.answer("Выберите клан для вступления:", reply_markup=clan_list_kb)
         except Exception as e:
             await callback.message.answer(f"Произошла ошибка: {str(e)}")
+# присоединение в клан
+@callback_router.callback_query(F.data.startswith("join_"))
+async def join_clan(callback: types.CallbackQuery):
+    clan_id = int(callback.data.split("_")[1])
+    user_id = callback.from_user.id
 
-# @callback_router.callback_query(F.data.startswith("join_"))
-# async def join_clan(callback: types.CallbackQuery):
-#     clan_id = int(callback.data.split("_")[1])
-#     user_id = callback.from_user.id
-#
-#     async with session_maker() as session:
-#         try:
-#             logging.info(f"User {user_id} attempting to join clan {clan_id}")
-#
-#             # Проверяем, существует ли клан
-#             clan_result = await session.execute(
-#                 select(Clan).where(Clan.clan_id == clan_id)
-#             )
-#             clan = clan_result.scalars().first()
-#             if not clan:
-#                 await callback.message.answer("Клан не найден.")
-#                 return
-#
-#             # Добавляем пользователя в клан
-#             new_member = ClanMember(clan_id=clan_id, user_id=user_id)
-#             session.add(new_member)
-#             await session.commit()
-#
-#             await callback.message.answer(f"Вы успешно вступили в клан '{clan.name}'!")
-#         except Exception as e:
-#             logging.exception(f"Error: {e}")
-#             await callback.message.answer(f"Произошла ошибка: {str(e)}")
+    async with session_maker() as session:
+        try:
+            logging.info(f"User {user_id} attempting to join clan {clan_id}")
+
+            # Проверяем, существует ли клан
+            clan_result = await session.execute(
+                select(Clan).where(Clan.clan_id == clan_id)
+            )
+            clan = clan_result.scalars().first()
+            if not clan:
+                await callback.message.answer("Клан не найден.")
+                return
+
+            # Добавляем пользователя в клан
+            new_member = ClanMember(clan_id=clan_id, user_id=user_id)
+            session.add(new_member)
+            await session.commit()
+
+            await callback.message.answer(f"Вы успешно вступили в клан '{clan.name}'!")
+        except Exception as e:
+            logging.exception(f"Error: {e}")
+            await callback.message.answer(f"Произошла ошибка: {str(e)}")
 
 
 # Обработчик нажатия "Топ 100 игроков"
@@ -276,7 +277,7 @@ async def handle_shop(callback_query: types.CallbackQuery):
 
                     # Создаем кнопку для покупки товара
                     buy_button = InlineKeyboardButton(
-                        text=f"Купить товар",
+                        text=f"💵Купить товар {item.name} {item.description}",
                         callback_data=f"buy_{item.item_id}"
                     )
 
@@ -468,7 +469,7 @@ async def friend_game(callback_query: types.CallbackQuery):
     await bot.send_message(user_id,
                            f"Код для приглашения друга: {lobby.private_code}. Передайте его другу для подключения.")
 
-
+#обработчик обычной игры
 @callback_router.callback_query(PublicState.waiting_for_pub)
 async def callback_public_game(callback_query: types.CallbackQuery, state: FSMContext):
     data = callback_query.data.split(':')
@@ -615,7 +616,27 @@ async def back_to_main_menu(callback_query: types.CallbackQuery):
     await callback_query.message.edit_text("Вы вернулись в главное меню.",reply_markup=main_menu_keyboard)  # Здесь можно добавить основное меню или другие кнопки
 
 
+@callback_router.callback_query(
+    lambda callback_query: callback_query.data in ['public_stat', 'ranked_stat', 'main_stat', 'private_stat'])
+async def in_progres(callback_query: types.CallbackQuery):
+    # Здесь вы можете обработать каждое значение data по своему
+    if callback_query.data == 'public_stat':
+        await callback_query.message.edit_text("Вы выбрали публичную статистику.")
+    elif callback_query.data == 'ranked_stat':
+        await callback_query.message.edit_text("Вы выбрали рейтинговую статистику.")
+    elif callback_query.data == 'main_stat':
+        await callback_query.message.edit_text("Вы выбрали основную статистику.")
+    elif callback_query.data == 'private_stat':
+        await callback_query.message.edit_text("Вы выбрали приватную статистику.")
 
+    # Отправляем уведомление
+    notification_message = await callback_query.message.answer("🛠 Уведомление: Функция в разработке...")
+
+    # Ждем 3 секунды
+    await asyncio.sleep(3)
+
+    # Удаляем уведомление
+    await notification_message.delete()
 
 
 # @callback_router.callback_query(F.data == 'rank_game')
@@ -636,3 +657,39 @@ async def back_to_main_menu(callback_query: types.CallbackQuery):
 #         lobbies.remove(lobby)
 #         games.append(game)
 #         await send_board(game)
+# Обработчик кнопки "Магазин"
+@callback_router.callback_query(F.data == 'myBalance')
+async def handle_sh(callback_query: types.CallbackQuery):
+    # Отправляем сообщение с кнопками
+    await callback_query.message.answer("Выберите количество алмазов для покупки:", reply_markup=keyboards)
+
+@callback_router.callback_query(F.data.startswith("Bbuy_"))
+async def handle_buy(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    try:
+        item_id = callback_query.data.split('_')[1]  # Получаем ID товара
+        if item_id not in buy_options:
+            await callback_query.message.answer("Неверный выбор.")
+            return
+
+        # Получаем данные о выбранном товаре
+        item = buy_options[item_id]
+        price_in_rub = item["price"]  # Цена в рублях
+        diamonds = item["amount"]  # Количество алмазов
+
+        # Устанавливаем цену в копейках (нужно для LabeledPrice)
+        prices = [LabeledPrice(label=diamonds, amount=price_in_rub * 100)]
+
+        # Отправляем инвойс
+        await bot.send_invoice(
+            chat_id=user_id,
+            title=f"Покупка 💎",
+            description=f"Оплат за {diamonds}.",
+            payload=f"buy_{item_id}",  # Полезная нагрузка для проверки
+            provider_token=PAYMENTS_PROVIDER_TOKEN,
+            currency="RUB",
+            prices=prices,
+            start_parameter="purchase"
+        )
+    except Exception as e:
+        await callback_query.message.answer(f"Произошла ошибка: {str(e)}")
