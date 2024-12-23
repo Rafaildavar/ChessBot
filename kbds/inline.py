@@ -25,7 +25,8 @@ main_menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
 clan_actions = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Создать клан", callback_data="create_clan")],
     [InlineKeyboardButton(text="Вступить в клан", callback_data="join_clan")],
-    [InlineKeyboardButton(text="Управление кланами", callback_data="manage_clan")]
+    [InlineKeyboardButton(text="Управление кланами", callback_data="manage_clan")],
+    [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
 ])
 stat_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Статистика обычных игр", callback_data="public_stat")],
@@ -39,5 +40,6 @@ keyboards = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Купить 50💎", callback_data="Bbuy_50")],
         [InlineKeyboardButton(text="Купить 100💎", callback_data="Bbuy_100")],
         [InlineKeyboardButton(text="Купить 500💎", callback_data="Bbuy_500")],
-        [InlineKeyboardButton(text="Купить 1000💎", callback_data="Bbuy_1000")]
+        [InlineKeyboardButton(text="Купить 1000💎", callback_data="Bbuy_1000")],
+        [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
     ])

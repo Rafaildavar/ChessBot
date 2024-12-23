@@ -82,6 +82,14 @@ async def process_create_clan(callback: types.CallbackQuery, state: FSMContext):
             if not user:
                 await callback.message.answer("Пользователь не найден в базе данных.")
                 return
+            result2 = await session.execute(select(ClanMember).filter(ClanMember.user_id==user_id))
+            clan_m = result2.scalars().first()
+            if clan_m:
+                await callback.message.answer(
+                     'Невозможно создать клан пока вы состоите в клане, сначала покиньте клан'
+                )
+                return
+
 
             if user.diamonds < 200:
                 await callback.message.answer(
@@ -157,6 +165,14 @@ async def process_clan_name(message: types.Message, state: FSMContext):
             # Создаем новый клан
             new_clan = Clan(name=clan_name, leader_id=user_id)
             session.add(new_clan)
+            await session.flush()  # Применить изменения, чтобы получить id нового клана
+
+            # Получаем id нового клана
+            clan_id = new_clan.id
+
+            # Добавляем пользователя в члены клана
+            new_member = ClanMember(clan_id=clan_id, user_id=user_id)
+            session.add(new_member)
             await session.commit()
 
             await message.answer(f"Клан '{clan_name}' успешно создан!")
@@ -164,6 +180,7 @@ async def process_clan_name(message: types.Message, state: FSMContext):
             await message.answer(f"Произошла ошибка при создании клана: {str(e)}")
 
     await state.clear()
+
 
 
 #Обработчик отмены создания клана
@@ -235,6 +252,57 @@ async def join_clan(callback: types.CallbackQuery):
             await callback.message.answer(f"Произошла ошибка: {str(e)}")
 
 
+#Обработчик управлением кланами
+@callback_router.callback_query(F.data == 'manage_clan')
+async def manage_clan(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    async with session_maker() as session:
+        try:
+            # Проверяем, существует ли клан
+            clan_result = await session.execute(
+                select(ClanMember).where(ClanMember.user_id == user_id)
+            )
+            clan = clan_result.scalars().first()
+            if not clan:
+                await callback.message.answer("Клан не найден.")
+                return
+            cur_clan_id = clan.clan_id
+            clan_info = await session.execute(
+                select(Clan).where(Clan.clan_id == cur_clan_id)
+            )
+            clan_obj = clan_info.scalars().first()
+            leader_id = clan_obj.leader_id
+
+            # Получаем всех членов клана
+            members_result = await session.execute(
+                select(User)
+                .join(ClanMember, User.user_id == ClanMember.user_id)
+                .filter(ClanMember.clan_id == cur_clan_id)
+            )
+            members = members_result.scalars().all()
+
+            # Формируем список участников клана
+            member_list = []
+            for member in members:
+                text = f"{member.username} - рейтинг{member.rating}🎖️ {'(Лидер)' if member.user_id == leader_id else ''}"
+                member_list.append(text)
+            # Отправляем сообщение с участниками клана
+            await callback.message.answer(
+                f"Участники клана:\n\n{chr(10).join(member_list)}",
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[[
+                        InlineKeyboardButton(text=f"Назад", callback_data="back_to_main_menu")
+                    ]]
+                ),
+                parse_mode='HTML'
+            )
+
+        except SQLAlchemyError as e:
+            logging.error(f"Database error: {e}")
+            await callback.message.answer("Произошла ошибка при получении информации о клане.")
+
+
+
 # Обработчик нажатия "Топ 100 игроков"
 @callback_router.callback_query(F.data == 'top100')
 async def handle_top100(callback_query: types.CallbackQuery):
@@ -283,7 +351,8 @@ async def handle_shop(callback_query: types.CallbackQuery):
 
                     # Добавляем кнопку в клавиатуру
                     keyboard.inline_keyboard.append([buy_button])
-
+                    f =[InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
+                keyboard.inline_keyboard.append(f)
                 # Отправляем сообщение с кнопками
                 await callback_query.message.answer(response, reply_markup=keyboard)
             else:
