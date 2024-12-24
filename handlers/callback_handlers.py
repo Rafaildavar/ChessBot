@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import datetime
 
 from aiogram import F
 from aiogram import Router, types
@@ -10,13 +11,15 @@ from chess import Piece
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
 
+from database.orm_query import add_diamonds_to_user
 from market.market import buy_options,PAYMENTS_PROVIDER_TOKEN
 from config import bot
 from database.db import User, ClanMember, Clan, ShopItem, Purchase, Statistic
 from database.db import session_maker
 from gameLogic.game import Lobby
-from kbds.State import FeedbackState, ProfileState, ClanState, PublicState
-from kbds.inline import clan_actions, stat_keyboard, main_menu_keyboard,keyboards
+from kbds.State import FeedbackState, ProfileState, ClanState, PublicState,PrivateState
+from kbds.inline import clan_actions, stat_keyboard, main_menu_keyboard, keyboards, event_board, claim_gift_board, \
+   menu_button
 from utils.game_relation import get_game, board_update, send_board, games, lobbies
 
 callback_router = Router()
@@ -263,6 +266,7 @@ async def manage_clan(callback: types.CallbackQuery):
                 select(ClanMember).where(ClanMember.user_id == user_id)
             )
             clan = clan_result.scalars().first()
+
             if not clan:
                 await callback.message.answer("Клан не найден.")
                 return
@@ -288,7 +292,7 @@ async def manage_clan(callback: types.CallbackQuery):
                 member_list.append(text)
             # Отправляем сообщение с участниками клана
             await callback.message.answer(
-                f"Участники клана:\n\n{chr(10).join(member_list)}",
+                f"Участники клана: {clan_obj.name}\n\n{chr(10).join(member_list)}",
                 reply_markup=InlineKeyboardMarkup(
                     inline_keyboard=[[
                         InlineKeyboardButton(text=f"Назад", callback_data="back_to_main_menu")
@@ -524,9 +528,10 @@ async def public_game(callback_query: types.CallbackQuery,state: FSMContext):
         lobbies.remove(lobby)
         games.append(game)
         await send_board(game)
-        await state.set_state(PublicState.waiting_for_pub_game)
+        await state.clear()
+
 # Обработчик игры с другом
-@callback_router.callback_query(F.data == 'friend_game')
+@callback_router.callback_query(F.data == 'friendGame')
 async def friend_game(callback_query: types.CallbackQuery):
     user_id: int = callback_query.from_user.id
     await callback_query.answer()
@@ -538,72 +543,233 @@ async def friend_game(callback_query: types.CallbackQuery):
     await bot.send_message(user_id,
                            f"Код для приглашения друга: {lobby.private_code}. Передайте его другу для подключения.")
 
-#обработчик обычной игры
-@callback_router.callback_query(PublicState.waiting_for_pub)
-async def callback_public_game(callback_query: types.CallbackQuery, state: FSMContext):
-    data = callback_query.data.split(':')
-    user_id: int = callback_query.from_user.id
-    game_id = int(data[0])
-    cell_id = data[1]
-
-    game = await get_game(callback_query, game_id)
-    if game is None:
-        return
-
-    if cell_id in ('4', '3', '5', '2'):
-        last_move = game.board.pop()
-        last_move.promotion = int(cell_id)
-        game.board.push(last_move)
-
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(bot.delete_message(user_id, callback_query.message.message_id))
-            tg.create_task(board_update(game))
-
-        game.choosing_shape = -1
-        return
-
-    if game.choosing_shape != -1:
-        await callback_query.answer()
-        return
-
-    mess, update_board = game.click(cell_id, user_id)
-    outcome_message = await game.get_outcome_message()
-
-    if outcome_message is not None:
-        await board_update(game, True)
-        games.remove(game)
-        return
-
-    if mess is not None:
-        if mess == 'Превращение':
-            await bot.send_message(
-                chat_id=user_id,
-                text='Выберите фигуру:',
-                reply_markup=InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [InlineKeyboardButton(
-                            text=Piece(i, game.board.turn).unicode_symbol(invert_color=True),
-                            callback_data=f'{game_id}:{i}'
-                        ) for i in (4, 3, 5, 2)]
-                    ]
-                )
-            )
-        else:
-            await callback_query.answer(text=mess)
-
-    if update_board:
-        try:
-            await board_update(game)  # Убедитесь, что это асинхронно
-        except TelegramBadRequest:
-            print('Ошибка при обновлении доски')
-            await callback_query.answer()
-
-    # Убедитесь, что состояние остаётся в waiting_for_pub_game
-    await state.set_state(PublicState.waiting_for_pub_game)
 
 
-@callback_router.callback_query(PublicState.waiting_for_pub_game)
-async def callback_click_public_game(callback_query: types.CallbackQuery, state: FSMContext):
+
+
+#
+# # Обработчик игры с другом
+# @callback_router.callback_query(F.data == 'friendGame')
+# async def friend_game(callback_query: types.CallbackQuery):
+#     await callback_query.message.answer("Выберите :", reply_markup=private_board)
+#     # await callback_query.answer()
+
+
+# # Обработчик игры с другом
+# @callback_router.callback_query(F.data == 'get')
+# async def get_code(callback_query: types.CallbackQuery, state: FSMContext):
+#     user_id: int = callback_query.from_user.id
+#     await bot.send_message(user_id,f" Введите код подключения")
+#     await state.set_state(PrivateState.waiting_for_code)
+#
+#
+# # Обработчик игры с другом
+# @callback_router.callback_query(F.data == 'create')
+# async def create_code(callback_query: types.CallbackQuery,state: FSMContext):
+#     user_id: int = callback_query.from_user.id
+#     lobby: Lobby = Lobby(user_id, private=True)
+#     lobbies.append(lobby)
+#
+#     # Сообщение с кодом для подключения друга
+#     await bot.send_message(user_id,
+#                            f"Код для приглашения друга: {lobby.private_code}. Передайте его другу для подключения.")
+#     await state.set_state(PrivateState.waiting_for_friend_join)
+
+# #обработчик обычной игры
+# @callback_router.callback_query(PublicState.waiting_for_pub)
+# async def callback_public_game(callback_query: types.CallbackQuery, state: FSMContext):
+#     data = callback_query.data.split(':')
+#     user_id: int = callback_query.from_user.id
+#     game_id = int(data[0])
+#     cell_id = data[1]
+#
+#     game = await get_game(callback_query, game_id)
+#     if game is None:
+#         return
+#
+#     if cell_id in ('4', '3', '5', '2'):
+#         last_move = game.board.pop()
+#         last_move.promotion = int(cell_id)
+#         game.board.push(last_move)
+#
+#         async with asyncio.TaskGroup() as tg:
+#             tg.create_task(bot.delete_message(user_id, callback_query.message.message_id))
+#             tg.create_task(board_update(game))
+#
+#         game.choosing_shape = -1
+#         return
+#
+#     if game.choosing_shape != -1:
+#         await callback_query.answer()
+#         return
+#
+#     mess, update_board = game.click(cell_id, user_id)
+#     outcome_message = await game.get_outcome_message()
+#
+#     if outcome_message is not None:
+#         await board_update(game, True)
+#         games.remove(game)
+#         return
+#
+#     if mess is not None:
+#         if mess == 'Превращение':
+#             await bot.send_message(
+#                 chat_id=user_id,
+#                 text='Выберите фигуру:',
+#                 reply_markup=InlineKeyboardMarkup(
+#                     inline_keyboard=[
+#                         [InlineKeyboardButton(
+#                             text=Piece(i, game.board.turn).unicode_symbol(invert_color=True),
+#                             callback_data=f'{game_id}:{i}'
+#                         ) for i in (4, 3, 5, 2)]
+#                     ]
+#                 )
+#             )
+#         else:
+#             await callback_query.answer(text=mess)
+#
+#     if update_board:
+#         try:
+#             await board_update(game)  # Убедитесь, что это асинхронно
+#         except TelegramBadRequest:
+#             print('Ошибка при обновлении доски')
+#             await callback_query.answer()
+#
+#     # Убедитесь, что состояние остаётся в waiting_for_pub_game
+#     await state.set_state(PublicState.waiting_for_pub_game)
+#
+#
+# @callback_router.callback_query(PublicState.waiting_for_pub_game)
+# async def callback_click_public_game(callback_query: types.CallbackQuery, state: FSMContext):
+#     data = callback_query.data.split(':')
+#     user_id: int = callback_query.from_user.id
+#     game_id = int(data[0])
+#     cell_id = data[1]
+#
+#     game = await get_game(callback_query, game_id)
+#     if game is None:
+#         return
+#
+#     if cell_id in ('4', '3', '5', '2'):
+#         last_move = game.board.pop()
+#         last_move.promotion = int(cell_id)
+#         game.board.push(last_move)
+#
+#         async with asyncio.TaskGroup() as tg:
+#             tg.create_task(bot.delete_message(user_id, callback_query.message.message_id))
+#             tg.create_task(board_update(game))
+#
+#         game.choosing_shape = -1
+#         return
+#
+#     if game.choosing_shape != -1:
+#         await callback_query.answer()
+#         return
+#
+#     mess, update_board = game.click(cell_id, user_id)
+#     outcome_message = await game.get_outcome_message()
+#
+#     if outcome_message is not None:
+#         await board_update(game, True)
+#         games.remove(game)
+#         return
+#
+#     if mess is not None:
+#         if mess == 'Превращение':
+#             await bot.send_message(
+#                 chat_id=user_id,
+#                 text=f'Выберите фигуру:',
+#                 reply_markup=InlineKeyboardMarkup(
+#                     inline_keyboard=[
+#                         [InlineKeyboardButton(
+#                             text=Piece(i, game.board.turn).unicode_symbol(invert_color=True),
+#                             callback_data=f'{game_id}:{i}'
+#                         ) for i in (4, 3, 5, 2)]
+#                     ]
+#                 )
+#             )
+#         else:
+#             await callback_query.answer(text=mess)
+#
+#     if update_board:
+#         try:
+#             await board_update(game)  # Убедитесь, что это асинхронно
+#         except TelegramBadRequest:
+#             print('Ошибка при обновлении доски')
+#             await callback_query.answer()
+#
+#     # Убедитесь, что состояние остаётся в waiting_for_pub_game
+#     await state.clear()
+#     await state.set_state(PublicState.waiting_for_pub_game)
+
+
+# #обработчик приватной игры
+# @callback_router.callback_query(PrivateState.waiting_for_private)
+# async def callback_private_game(callback_query: types.CallbackQuery, state: FSMContext):
+#     data = callback_query.data.split(':')
+#     user_id: int = callback_query.from_user.id
+#     game_id = int(data[0])
+#     cell_id = data[1]
+#
+#     game = await get_game(callback_query, game_id)
+#     if game is None:
+#         return
+#
+#     if cell_id in ('4', '3', '5', '2'):
+#         last_move = game.board.pop()
+#         last_move.promotion = int(cell_id)
+#         game.board.push(last_move)
+#
+#         async with asyncio.TaskGroup() as tg:
+#             tg.create_task(bot.delete_message(user_id, callback_query.message.message_id))
+#             tg.create_task(board_update(game))
+#
+#         game.choosing_shape = -1
+#         return
+#
+#     if game.choosing_shape != -1:
+#         await callback_query.answer()
+#         return
+#
+#     mess, update_board = game.click(cell_id, user_id)
+#     outcome_message = await game.get_outcome_message()
+#
+#     if outcome_message is not None:
+#         await board_update(game, True)
+#         games.remove(game)
+#         return
+#
+#     if mess is not None:
+#         if mess == 'Превращение':
+#             await bot.send_message(
+#                 chat_id=user_id,
+#                 text='Выберите фигуру:',
+#                 reply_markup=InlineKeyboardMarkup(
+#                     inline_keyboard=[
+#                         [InlineKeyboardButton(
+#                             text=Piece(i, game.board.turn).unicode_symbol(invert_color=True),
+#                             callback_data=f'{game_id}:{i}'
+#                         ) for i in (4, 3, 5, 2)]
+#                     ]
+#                 )
+#             )
+#         else:
+#             await callback_query.answer(text=mess)
+#
+#     if update_board:
+#         try:
+#             await board_update(game)  # Убедитесь, что это асинхронно
+#         except TelegramBadRequest:
+#             print('Ошибка при обновлении доски')
+#             await callback_query.answer()
+#
+#     # Убедитесь, что состояние остаётся в waiting_for_pub_game
+#     await state.clear()
+#     await state.set_state(PrivateState.waiting_for_private_game)
+
+
+@callback_router.callback_query(PrivateState.waiting_for_private_game)
+async def callback_click_private_game(callback_query: types.CallbackQuery, state: FSMContext):
     data = callback_query.data.split(':')
     user_id: int = callback_query.from_user.id
     game_id = int(data[0])
@@ -662,9 +828,7 @@ async def callback_click_public_game(callback_query: types.CallbackQuery, state:
             await callback_query.answer()
 
     # Убедитесь, что состояние остаётся в waiting_for_pub_game
-    await state.clear()
     await state.set_state(PublicState.waiting_for_pub_game)
-
 
 @callback_router.callback_query(F.data == 'statistics')
 async def show_statistics(callback_query: types.CallbackQuery):
@@ -762,3 +926,105 @@ async def handle_buy(callback_query: types.CallbackQuery):
         )
     except Exception as e:
         await callback_query.message.answer(f"Произошла ошибка: {str(e)}")
+gift_claim_times = {}
+# Кнопки для текущих событий
+
+
+
+# Обработчик кнопки "События"
+@callback_router.callback_query(F.data == 'event')
+async def handle_event(callback_query: types.CallbackQuery):
+
+    await callback_query.message.answer(text='Доступные события', reply_markup=event_board)
+
+
+
+# Обработчик кнопки события "Релиз проекта"
+@callback_router.callback_query(F.data == 'release_event')
+async def handle_release_event(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    now = datetime.datetime.now()
+
+    # Проверяем, прошло ли 24 часа с момента последнего забора подарка
+    if user_id in gift_claim_times and (now - gift_claim_times[user_id]).total_seconds() < 86400:
+        time_left = 86400 - (now - gift_claim_times[user_id]).total_seconds()
+        hours = int(time_left // 3600)
+        minutes = int((time_left % 3600) // 60)
+        seconds = int(time_left % 60)
+        await callback_query.answer(f"Подарок можно забрать через {hours} часов, {minutes} минут и {seconds} секунд.")
+    else:
+
+        await callback_query.message.answer(text='ChessSuaiBot уже здесь!', reply_markup=claim_gift_board)
+
+
+# Обработчик кнопки "Забрать подарок"
+@callback_router.callback_query(F.data == 'claim_gift')
+async def handle_claim_gift(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    gift_claim_times[user_id] = datetime.datetime.now()
+
+    # Добавляем алмазы пользователю
+    await add_diamonds_to_user(user_id, 5)
+
+    await callback_query.message.edit_text("Вы получили 5 алмазов! Подарок можно будет забрать снова через 24 часа.",reply_markup=menu_button)
+
+
+
+
+
+
+
+
+
+@callback_router.callback_query()
+async def callback_handler(callback_query: types.CallbackQuery):
+    data = callback_query.data.split(':')
+    user_id: int = callback_query.from_user.id
+    game_id = int(data[0])
+    cell_id = data[1]
+
+    game = await get_game(callback_query, game_id)
+    if game is None:
+        return
+
+    if cell_id in ('4', '3', '5', '2'):
+        last_move = game.board.pop()
+        last_move.promotion = int(cell_id)
+        game.board.push(last_move)
+
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(bot.delete_message(user_id, callback_query.message.message_id))
+            tg.create_task(board_update(game))
+
+        game.choosing_shape = -1
+        return
+
+    if game.choosing_shape != -1:
+        await callback_query.answer()
+        return
+
+    mess, update_board = game.click(cell_id, user_id)
+    outcome_message = await game.get_outcome_message()
+    if outcome_message is not None:
+        await board_update(game, True)
+        games.remove(game)
+        return
+
+    if mess is not None:
+        if mess == 'Превращение':
+            await bot.send_message(chat_id=user_id,
+                                   text='Выберите фигуру:',
+                                   reply_markup=InlineKeyboardMarkup(
+                                       inline_keyboard=[
+                                           [InlineKeyboardButton(
+                                               text=Piece(i, game.board.turn).unicode_symbol(invert_color=True),
+                                               callback_data=f'{game_id}:{i}')
+                                               for i in (4, 3, 5, 2)]]))
+        else:
+            await callback_query.answer(text=mess)
+    if update_board:
+        try:
+            await board_update(game)  # Убедитесь, что это асинхронно
+        except TelegramBadRequest:
+            print('ой')
+            await callback_query.answer()

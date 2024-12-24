@@ -11,7 +11,7 @@ top100_button = InlineKeyboardButton(text="🏆Топ 100 игроков", callb
 shop_button = InlineKeyboardButton(text="💰Магазин", callback_data="shop")
 myBalance_button = InlineKeyboardButton(text="💎Мой баланс", callback_data="myBalance")
 feedback_button = InlineKeyboardButton(text="💬Оставить отзыв", callback_data="feedback")
-ivents_button = InlineKeyboardButton(text="⛩События", callback_data="event")
+events_button = InlineKeyboardButton(text="⛩События", callback_data="event")
 
 main_menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [profile_button],
@@ -19,7 +19,7 @@ main_menu_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [public_button, rank_button],
         [feedback_button, setting_button],
         [shop_button, myBalance_button],
-        [ivents_button,top100_button],
+        [events_button,top100_button],
         [statistic_button]
     ])
 clan_actions = InlineKeyboardMarkup(inline_keyboard=[
@@ -43,3 +43,20 @@ keyboards = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Купить 1000💎", callback_data="Bbuy_1000")],
         [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
     ])
+private_board = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Создать код для друга", callback_data="create")],
+        [InlineKeyboardButton(text="Ввести код приглашения", callback_data="get")],
+        [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
+    ])
+
+event_board = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💻 Релиз проекта", callback_data="release_event")],
+        # [InlineKeyboardButton(text="❄️ Зимний фестиваль", callback_data="winter_festival")],
+    ])
+
+claim_gift_board = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text= "Забрать подарок", callback_data="claim_gift")]
+     ])
+menu_button = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
+     ])

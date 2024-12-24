@@ -2,7 +2,7 @@ from collections import defaultdict
 from typing import Optional
 
 from sqlalchemy.future import select
-
+from sqlalchemy.exc import IntegrityError, OperationalError
 # from database.db import Statistic
 from database.db import logger
 from database.db import session_maker, User
@@ -88,4 +88,18 @@ async def update_user_stats(user_id, wins, losses, draws):
             else:
                 raise ValueError("Пользователь не найден.")
     except Exception as e:
+        logger.error(f"Ошибка обновления статистики пользователя {user_id}: {e}")
+async def add_diamonds_to_user(user_id: int, count : int) -> None:
+    try:
+        # Обновление данных пользователя
+        async with session_maker() as session:
+            user = await session.get(User, user_id)
+            if user:
+                user.diamonds+=count
+
+                await session.commit()
+                await session.refresh(user)
+            else:
+                raise ValueError("Пользователь не найден.")
+    except(IntegrityError, OperationalError) as e :
         logger.error(f"Ошибка обновления статистики пользователя {user_id}: {e}")

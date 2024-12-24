@@ -8,12 +8,12 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy import and_
 from sqlalchemy.future import select
 
-
+from config import bot
 from aiogram.types import ContentType
 from database.db import User, Feedback, Statistic
 from database.db import session_maker
 from gameLogic.game import Lobby
-from kbds.State import FeedbackState, ProfileState
+from kbds.State import FeedbackState, ProfileState, PrivateState
 from kbds.inline import main_menu_keyboard
 from utils.game_relation import lobbies, games
 from utils.game_relation import send_board
@@ -109,25 +109,26 @@ async def save_feedback(message: types.Message, state: FSMContext):
             await state.clear()  # В случае ошибки или успешного добавления отзыва очищаем состояние
 
 
-# # Получение кода игры от пользователя
-# @message_router.message()
-# async def handle_game_code(message: types.Message):
-#     game_code: str = message.text.strip()
-#     user_id: int = message.from_user.id
-#     if len(game_code) != 5 or not game_code.isdigit():
-#         return
-#
-#     lobby: Lobby = next(filter(lambda s_lobby: s_lobby.private and
-#                                                s_lobby.private_code == game_code and
-#                                                s_lobby.first_player != user_id,
-#                                lobbies), None)
-#     if lobby is None:
-#         return
-#
-#     game = lobby.start_game(user_id)
-#     lobbies.remove(lobby)
-#     games.append(game)
-#     await send_board(game)
+# Получение кода игры от пользователя
+@message_router.message()
+async def handle_game_code(message: types.Message,state: FSMContext):
+    game_code: str = message.text.strip()
+    user_id2: int = message.from_user.id
+    if len(game_code) != 5 or not game_code.isdigit():
+        return
+
+    lobby: Lobby = next(filter(lambda s_lobby: s_lobby.private and
+                                               s_lobby.private_code == game_code and
+                                               s_lobby.first_player != user_id2,
+                               lobbies), None)
+    if lobby is None:
+        return
+
+    game = lobby.start_game(user_id2)
+    lobbies.remove(lobby)
+    games.append(game)
+    await send_board(game)
+    # await state.set_state(PrivateState.waiting_for_private_game)
 
 
 @message_router.message(F.content_type == ContentType.SUCCESSFUL_PAYMENT)

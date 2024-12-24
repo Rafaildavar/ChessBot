@@ -15,3 +15,9 @@ class PublicState(StatesGroup):
 
 class FeedbackState(StatesGroup):
     waiting_for_feedback = State()
+
+class PrivateState(StatesGroup):
+    waiting_for_code = State()
+    waiting_for_private = State()
+    waiting_for_private_game = State()
+    waiting_for_friend_join = State()
