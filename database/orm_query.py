@@ -33,7 +33,7 @@ async def get_user_rating(user_id: int) -> Optional[int]:
         return result.scalar()
 
 
-async def update_user_attributes(user_id: int,user_result:str) -> str:
+async def update_user_attributes(user_id: int,user_result:str, isprivate: bool,israng: bool) -> str:
     """Обновить атрибуты пользователя в базе данных по заданным условиям."""
     async with session_maker() as session:
         try:
@@ -43,19 +43,33 @@ async def update_user_attributes(user_id: int,user_result:str) -> str:
 
             if user:
                 if update_counter[user_id] <1:
-                # Увеличиваем счетчик обновлений для данного пользователя
-                    update_counter[user_id] += 1
-                    if 'Победа' in user_result:
-                        user.wins += 1
-                    elif 'Поражение' in user_result:
-                        user.losses += 1
-                    elif user_result == 'Ничья!':
-                        user.draws += 1
-                    user.total_games+=1
-                    await update_user_stats(user_id, user.wins, user.losses, user.draws)
-                    update_counter[user_id]+=1
+                    if not isprivate:
+                        if not israng:
+                        # Увеличиваем счетчик обновлений для данного пользователя
+                            update_counter[user_id] += 1
+                            if 'Победа' in user_result:
+                                user.wins += 1
+                            elif 'Поражение' in user_result:
+                                user.losses += 1
+                            elif user_result == 'Ничья!':
+                                user.draws += 1
+                            user.total_games+=1
+                            await update_user_stats(user_id, user.wins, user.losses, user.draws)
+                            update_counter[user_id]+=1
                 # Обновляем атрибуты пользователя на основе переданного словаря updates
-
+                        else:
+                            update_counter[user_id] += 1
+                            if 'Победа' in user_result:
+                                user.wins += 1
+                                user.rating +=1
+                            elif 'Поражение' in user_result:
+                                user.losses += 1
+                                user.rating -= 1
+                            elif user_result == 'Ничья!':
+                                user.draws += 1
+                            user.total_games += 1
+                            await update_user_stats(user_id, user.wins, user.losses, user.draws)
+                            update_counter[user_id] += 1
 
                 # Сохраняем изменения в базе данных
                 await session.commit()

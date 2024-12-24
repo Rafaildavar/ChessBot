@@ -107,7 +107,13 @@ async def save_feedback(message: types.Message, state: FSMContext):
             await message.answer(f"Произошла ошибка при сохранении отзыва: {str(e)}")
         finally:
             await state.clear()  # В случае ошибки или успешного добавления отзыва очищаем состояние
+@message_router.message(F.content_type == ContentType.SUCCESSFUL_PAYMENT)
+async def successful_payment(message: types.Message):
+    payment_info = message.successful_payment.total_amount # Получаем информацию о платеже
+    amount =  payment_info // 100  # Сумма в рублях
+    # payload = payment_info['invoice_payload']  # Полезная нагрузка
 
+    await message.answer(f"Оплат на сумму {amount} рублей прошла успешно!")
 
 # Получение кода игры от пользователя
 @message_router.message()
@@ -131,10 +137,3 @@ async def handle_game_code(message: types.Message,state: FSMContext):
     # await state.set_state(PrivateState.waiting_for_private_game)
 
 
-@message_router.message(F.content_type == ContentType.SUCCESSFUL_PAYMENT)
-async def successful_payment(message: types.Message):
-    payment_info = message.successful_payment.total_amount # Получаем информацию о платеже
-    amount =  payment_info // 100  # Сумма в рублях
-    # payload = payment_info['invoice_payload']  # Полезная нагрузка
-
-    await message.answer(f"Оплат на сумму {amount} рублей прошла успешно!")

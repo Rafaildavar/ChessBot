@@ -11,7 +11,7 @@ from chess import Piece
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
 
-from database.orm_query import add_diamonds_to_user
+from database.orm_query import add_diamonds_to_user, get_user_rating
 from market.market import buy_options,PAYMENTS_PROVIDER_TOKEN
 from config import bot
 from database.db import User, ClanMember, Clan, ShopItem, Purchase, Statistic
@@ -871,25 +871,37 @@ async def in_progres(callback_query: types.CallbackQuery):
     # Удаляем уведомление
     await notification_message.delete()
 
+@callback_router.callback_query(F.data == 'rank_game')
+async def rank_game(callback_query: types.CallbackQuery):
+    user_id: int = callback_query.from_user.id
+    await callback_query.answer()
+    # rating = await get_user_rating(user_id)
+    # # Определяем диапазон рейтинга
+    # if rating < 50:
+    #     rating_range = range(0, 51)
+    # elif rating < 100:
+    #     rating_range = range(51, 100)
+    # elif rating < 150:
+    #     rating_range = range(100, 1000)
+    # else:
+    #     await bot.send_message(user_id, 'Ваш рейтинг слишком высок для этой игры.')
+    #     return
 
-# @callback_router.callback_query(F.data == 'rank_game')
-# async def rank_game(callback_query: types.CallbackQuery):
-#     user_id: int = callback_query.from_user.id
-#     await callback_query.answer()
-#
-#     lobby: Lobby = next(filter(lambda s_lobby: s_lobby.rank and
-#                                                abs(user_profiles[user_id]['rating'] - user_profiles[user_id]['rating']) <= 50 and
-#                                                s_lobby.first_player != user_id,
-#                                lobbies), None)
-#     if lobby is None:
-#         lobbies.append(Lobby(user_id, rank=True))
-#         await bot.send_message(user_id, 'Ищем для вас противника.')
-#         return
-#     else:
-#         game = lobby.start_game(user_id)
-#         lobbies.remove(lobby)
-#         games.append(game)
-#         await send_board(game)
+    lobby: Lobby = next(filter(lambda s_lobby: not s_lobby.private and
+                                            s_lobby.rank and
+                                               s_lobby.first_player != user_id,
+                               lobbies), None)
+
+    if lobby is None:
+        lobbies.append(Lobby(user_id, rank=True))
+        await bot.send_message(user_id, 'Ищем для вас противника.')
+    else:
+        game = lobby.start_game(user_id)
+        lobbies.remove(lobby)
+        games.append(game)
+        await send_board(game)
+
+
 # Обработчик кнопки "Магазин"
 @callback_router.callback_query(F.data == 'myBalance')
 async def handle_sh(callback_query: types.CallbackQuery):

@@ -3,13 +3,15 @@ import asyncio
 from typing import Literal, Final, Optional
 import chess
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+
 from database.orm_query import get_user_name, update_user_attributes
 alp: Final[list[str]] = list('abcdefgh')
 
 lobby_codes: set = set()
 
-
-
+private_log = False
+rang_log = False
 
 # Пример асинхронной функции
 # async def get_user_name1(player_id: int) -> str:
@@ -26,6 +28,8 @@ class Player:
     def __init__(self, player_id: int, message_id: int = None) -> None:
         self.player_id: int = player_id
         self.message_board: int = message_id
+        self.private: bool = False
+        self.rang: bool = False
 
     def run_get_user_name(self):
         return asyncio.run(get_user_name(self.player_id))
@@ -131,21 +135,25 @@ class Game:
         if outcome.winner is not None:
             # Определяем победителя
             winner = 'Победа ' + ('белых⬜!' if outcome.winner else 'чёрных⬛!')
+            self.white_player.private = private_log
+            self.black_player.private = private_log
+            self.white_player.rang = rang_log
+            self.black_player.rang = rang_log
 
             # Обновляем статистику в зависимости от победителя
             if outcome.winner:  # Если выиграли белые
 
-                await update_user_attributes(self.white_player.player_id, winner)
-                await update_user_attributes(self.black_player.player_id, 'Поражение чёрных⬛!')
+                await update_user_attributes(self.white_player.player_id, winner,self.white_player.private,self.white_player.rang)
+                await update_user_attributes(self.black_player.player_id, 'Поражение чёрных⬛!',self.black_player.private,self.black_player.rang)
             else:  # Если выиграли черные
-                await update_user_attributes(self.white_player.player_id, 'Поражение белых⬜!')
-                await update_user_attributes(self.black_player.player_id, winner)
+                await update_user_attributes(self.white_player.player_id, 'Поражение белых⬜!',self.black_player.private,self.black_player.rang)
+                await update_user_attributes(self.black_player.player_id, winner, self.white_player.private,self.white_player.rang)
 
         else:
             # Ничья
             winner = 'Ничья!'
-            await update_user_attributes(self.white_player.player_id, winner)
-            await update_user_attributes(self.black_player.player_id, winner)
+            await update_user_attributes(self.white_player.player_id, winner,self.white_player.private,self.white_player.rang)
+            await update_user_attributes(self.black_player.player_id, winner,self.black_player.private,self.black_player.rang)
         return f'Игра закончена!\n' \
                f'{white_name}⬜ vs {black_name}⬛\n' \
                f'{winner}\n' \
@@ -197,16 +205,21 @@ class Lobby:
             self.private_code = None
 
     def start_game(self, player2_id) -> Game:
+        global private_log
+        global rang_log
         if self.private_code:
             lobby_codes.remove(self.private_code)
 
         players = [self.first_player, player2_id]
         random.shuffle(players)
-
+        rang_log = False
+        private_log = False
         if self.private:
             title = 'Приватная игра 🤝'
+            private_log = True
         elif self.rank:
             title = 'Ранговая игра 🏆'
+            rang_log = True
         else:
             title = 'Обычная игра 🏁'
         return Game(*players, title=title)
