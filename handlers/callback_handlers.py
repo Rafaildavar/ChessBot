@@ -39,7 +39,7 @@ async def profile(callback_query: types.CallbackQuery, state: FSMContext):
             result = await session.execute(select(User).filter(User.user_id == user_id))
             user = result.scalars().first()  # Получаем пользователя
 
-            if user:
+            if user.username !='new':
                 await callback_query.message.answer(
                     f"Ваш профиль:\n"
                     f"Имя пользователя: {user.username}\n"
@@ -60,6 +60,73 @@ async def profile(callback_query: types.CallbackQuery, state: FSMContext):
                 await state.set_state(ProfileState.waiting_for_username)
         except Exception as e:
             await callback_query.message.answer(f"Произошла ошибка: {str(e)}")
+
+# @callback_router.callback_query(F.data == 'white')
+# async def white_stat(callback_query: types.CallbackQuery):
+#     user_id = callback_query.from_user.id
+#     async with session_maker() as session:  # Используем асинхронную сессию
+#         try:
+#             # Использование SQLAlchemy для получения статистики
+#             result = await session.execute(select(Statistic).filter(Statistic.user_id == user_id))
+#             user_stats = result.scalars().first()  # Получаем статистику пользователя
+#
+#             # Получаем информацию о пользователе
+#             result2 = await session.execute(select(User).filter(User.user_id == user_id))
+#             user_info = result2.scalars().first()
+#
+#             if user_stats and user_info:
+#                 await callback_query.message.answer(
+#                     f"Ваша статистика игры за белых:\n"
+#                     f"Количество побед: {user_stats.white_wins} 🏆\n"
+#                     f"Количество поражений: {user_stats.white_losses} 😔\n"
+#                     f"Количество ничьих: {user_stats.white_draws} ☯️\n"
+#                     f"Количество проведенных партий: {user_info.total_games / 2} 🎮\n"
+#                     f"Процент побед: {user_stats.win_percentage_white}% 🎯\n"
+#                 )
+#             else:
+#                 # Если профиля нет, предлагаем его создать
+#                 await callback_query.message.answer(
+#                     "Похоже, у вас еще нет профиля."
+#                 )
+#         except Exception as e:
+#             await callback_query.message.answer(f"Произошла ошибка: {str(e)}")
+
+
+# @callback_router.callback_query(F.data == 'black')
+# async def black_stat(callback_query: types.CallbackQuery, state: FSMContext):
+#     user_id = callback_query.from_user.id
+#     async with session_maker() as session:
+#         try:
+#             # Получаем данные о пользователе
+#             result = await session.execute(select(Statistic).filter(Statistic.user_id == user_id))
+#             user_stats = result.scalars().first()
+#             result2 = await session.execute(select(User).filter(User.user_id == user_id))
+#             user_info = result2.scalars().first()
+#
+#             if user_stats and user_info:
+#                 # Вычисляем статистику за черных
+#                 black_wins = user_stats.white_losses  # Поражения за белых равны победам за черных
+#                 black_losses = user_stats.white_wins   # Победы за белых равны поражениям за черных
+#                 total_games_black = user_info.total_games / 2  # Общее количество игр делим на 2
+#                 black_draws = total_games_black - black_losses - black_wins
+#
+#                 # Процент побед за черных
+#                 win_percentage_black = (
+#                     (black_wins / total_games_black * 100) if total_games_black > 0 else 0
+#                 )
+#
+#                 await callback_query.message.answer(
+#                     f"Ваша статистика игры за черных:\n"
+#                     f"Количество побед: {black_wins} 🏆\n"
+#                     f"Количество поражений: {black_losses} 😔\n"
+#                     f"Количество ничьих: {black_draws} ☯️\n"
+#                     f"Количество проведенных партий: {total_games_black} 🎮\n"
+#                     f"Процент побед: {win_percentage_black:.2f}% 🎯\n"
+#                 )
+#             else:
+#                 await callback_query.message.answer("Похоже, у вас еще нет профиля.")
+#         except Exception as e:
+#             await callback_query.message.answer(f"Произошла ошибка: {str(e)}")
 
 #Обработчик callback_query для кнопки Оставить отзыв
 @callback_router.callback_query(F.data == 'feedback')

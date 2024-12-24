@@ -5,8 +5,7 @@ import chess
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-from database.orm_query import get_user_name, update_user_attributes, get_item_id
-
+from database.orm_query import get_user_name, update_user_attributes
 alp: Final[list[str]] = list('abcdefgh')
 
 lobby_codes: set = set()
@@ -107,23 +106,18 @@ class Game:
 
     async def get_message(self) -> str:
         white_name = await get_user_name(self.white_player.player_id)
-        white_item = await get_item_id(self.black_player.player_id)
         black_name = await get_user_name(self.black_player.player_id)
-        black_item = await get_item_id(self.black_player.player_id)
-
 
 
         return f'{self.title}\n' \
-                   f'{white_name}{white_item}⬜ vs {black_name}{black_item}⬛\n' \
+                   f'{white_name}⬜ vs {black_name}⬛\n' \
                    f'Ход: {"Белых⬜" if self.board.turn else "Чёрных⬛"}\n' \
                    f'{"Поставлен шах!" if self.board.is_check() else ""}\n' \
                    f'{f"Выбрана {self.pressed_cell}" if self.pressed_cell is not None else ""}'.strip()
 
     async def get_outcome_message(self) -> Optional[str]:
         white_name = await get_user_name(self.white_player.player_id)
-        white_item = await get_item_id(self.black_player.player_id)
         black_name = await get_user_name(self.black_player.player_id)
-        black_item = await get_item_id(self.black_player.player_id)
         outcome: chess.Outcome = self.board.outcome()
         if outcome is None:
             return
@@ -161,7 +155,7 @@ class Game:
             await update_user_attributes(self.white_player.player_id, winner,self.white_player.private,self.white_player.rang)
             await update_user_attributes(self.black_player.player_id, winner,self.black_player.private,self.black_player.rang)
         return f'Игра закончена!\n' \
-               f'{white_name}{white_item}⬜ vs {black_name}{black_item}⬛\n' \
+               f'{white_name}⬜ vs {black_name}⬛\n' \
                f'{winner}\n' \
                f'{message}'
 

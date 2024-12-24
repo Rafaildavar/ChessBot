@@ -28,7 +28,7 @@ class User(Base):
     __tablename__ = 'users'
 
     user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    username: Mapped[str | None] = mapped_column(String(255))
+    username: Mapped[str | None] = mapped_column(String(255),default='new')
     wins: Mapped[int] = mapped_column(Integer, default=0)
     losses: Mapped[int] = mapped_column(Integer, default=0)
     draws: Mapped[int] = mapped_column(Integer, default=0)
@@ -63,7 +63,7 @@ class Statistic(Base):
     __tablename__ = 'statistic'
 
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('users.user_id'), primary_key=True)
-    username: Mapped[str | None] = mapped_column(String(255))
+    username: Mapped[str | None] = mapped_column(String(255),default='new')
 
     white_wins: Mapped[int] = mapped_column(Integer, default=0)
     white_losses: Mapped[int] = mapped_column(Integer, default=0)

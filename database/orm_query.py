@@ -5,10 +5,11 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 # from database.db import Statistic
 from database.db import logger, Purchase, ShopItem
-from database.db import session_maker, User
+from database.db import session_maker, User,Statistic
 
 # Словарь для отслеживания количества обновлений статистики
 update_counter = defaultdict(int)
+update_counter2 = defaultdict(int)
 # Пример использования
 shop_items_data = [
     {
@@ -78,6 +79,7 @@ async def update_user_attributes(user_id: int,user_result:str, isprivate: bool,i
 
             if user:
                 if update_counter[user_id] <1:
+
                     if not isprivate:
                         if not israng:
                         # Увеличиваем счетчик обновлений для данного пользователя
@@ -169,8 +171,57 @@ async def insert_shop_items(items_data):
         except Exception as e:
             await session.rollback()
             raise e
-
-
+# Функция обновления win_percentage при изменении статистики игрока
+# async def update_user_st(user_id, wins, losses, draws):
+#     try:
+#
+#         # Обновление данных пользователя
+#         async with session_maker() as session:
+#             stats = await session.get(Statistic, user_id)
+#             if stats:
+#                 stats.white_wins = wins
+#                 stats.white_losses = losses
+#                 stats.white_draws = draws
+#                 stats.total_games = wins + losses + draws
+#                 stats.win_percentage_white = (wins / stats.total_games * 100) if stats.total_games > 0 else 0
+#
+#                 await session.commit()
+#                 await session.refresh(stats)
+#             else:
+#                 raise ValueError("Пользователь не найден.")
+#     except Exception as e:
+#         logger.error(f"Ошибка обновления статистики пользователя {user_id}: {e}")
+# async def update_user_statistic(user_id: int,user_result:str) -> str:
+#     """Обновить атрибуты пользователя в базе данных по заданным условиям."""
+#     async with session_maker() as session:
+#         try:
+#             # Получаем пользователя из базы данных
+#             result = await session.execute(select(Statistic).filter(Statistic.user_id == user_id))
+#             user = result.scalars().first()
+#
+#             if user:
+#                 if update_counter2[user_id] <1:
+#                     # Увеличиваем счетчик обновлений для данного пользователя
+#                         update_counter2[user_id] += 1
+#                         if 'Победа' in user_result:
+#                             user.white_wins += 1
+#                         elif 'Поражение' in user_result:
+#                             user.white_losses += 1
+#                         elif user_result == 'Ничья!':
+#                             user.white_draws += 1
+#                         user.total_games+=1
+#                         await update_user_st(user_id, user.white_wins, user.white_losses, user.white_draws)
+#                         update_counter[user_id]+=1
+#             # Обновляем атрибуты пользователя на основе переданного словаря updates
+#
+#                     # Сохраняем изменения в базе данных
+#                         await session.commit()
+#                 return 'статистика обновлена'
+#             else:
+#                 return "Неизвестный пользователь"
+#         except Exception as e:
+#             # Обработка ошибок, например, если произошла ошибка подключения к базе данных
+#             return f"Ошибка при обновлении данных пользователя: {str(e)}"
 
 async def get_item_id(user_id: int) -> str:
     """Получить имя пользователя из базы данных."""
@@ -193,3 +244,21 @@ async def get_item_id(user_id: int) -> str:
         except Exception as e:
             # Обработка ошибок, например, если произошла ошибка подключения к базе данных
             return f"Ошибка при получении имени пользователя: {str(e)}"
+
+
+# Функция обновления win_percentage при изменении статистики игрока
+async def update_user_name(user_id: int,username:str):
+    try:
+
+        # Обновление данных пользователя
+        async with session_maker() as session:
+
+            user = await session.get(User, user_id)
+            if user:
+                user.username = username
+                await session.commit()
+                await session.refresh(user)
+            else:
+                raise ValueError("Пользователь не найден.")
+    except Exception as e:
+        logger.error(f"Ошибка обновления статистики пользователя {user_id}: {e}")

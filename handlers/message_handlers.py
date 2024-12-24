@@ -5,16 +5,15 @@ from aiogram import Router
 from aiogram import types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.types import ContentType
 from sqlalchemy import and_
 from sqlalchemy.future import select
 
-from config import bot
-from aiogram.types import ContentType
 from database.db import User, Feedback, Statistic
 from database.db import session_maker
-from database.orm_query import add_diamonds_to_user
+from database.orm_query import add_diamonds_to_user, update_user_name
 from gameLogic.game import Lobby
-from kbds.State import FeedbackState, ProfileState, PrivateState
+from kbds.State import FeedbackState, ProfileState
 from kbds.inline import main_menu_keyboard
 from market.market import buy_options
 from utils.game_relation import lobbies, games
@@ -26,8 +25,25 @@ message_router = Router()
 #Обработчик message для команды Старт
 @message_router.message(Command('start'))
 async def start_command(message: types.Message):
+    user_id = message.from_user.id
+    async with session_maker() as session:
+        try:
+            # Сохраняем профиль в базу данных
+            user = User(user_id=user_id)
+            states = Statistic(user_id=user_id,username=None)
+
+            session.add(user)
+            session.add(states)
+
+            await session.commit()
+
+
+
+        except Exception as e:
+            print({str(e)})
+
     await message.answer("Привет! Давай сыграем в шахматы?")
-    await message.answer("Нажми кнопку, чтобы начать:", reply_markup=main_menu_keyboard)
+    await message.answer(f"Нажмите мой профиль, чтобы зарегистрироваться", reply_markup=main_menu_keyboard)
 #Обработчик message для команды Старт
 @message_router.message(Command('start'))
 async def back_to_main(message: types.Message):
@@ -41,17 +57,9 @@ async def process_username(message: types.Message, state: FSMContext):
     await state.update_data(username=message.text)
     username = message.text
     user_id = message.from_user.id
-    async with session_maker() as session:
+    async with session_maker():
         try:
-            # Сохраняем профиль в базу данных
-            user = User(user_id=user_id, username=username)
-            states = Statistic(user_id = user_id,username=username)
-
-            session.add(user)
-            session.add(states)
-
-            await session.commit()
-
+            await update_user_name(user_id,username)
             await message.answer(
                 f"Ваш профиль создан!\n"
                 f"Имя пользователя: {username}\n"
