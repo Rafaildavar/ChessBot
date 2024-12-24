@@ -24,6 +24,8 @@ from kbds.inline import clan_actions, stat_keyboard, main_menu_keyboard, keyboar
 from utils.game_relation import get_game, board_update, send_board, games, lobbies
 
 callback_router = Router()
+# Глобальная переменная для хранения текущего item_id
+current_item_id = 0
 
 
 
@@ -172,7 +174,7 @@ async def process_clan_name(message: types.Message, state: FSMContext):
             await session.flush()  # Применить изменения, чтобы получить id нового клана
 
             # Получаем id нового клана
-            clan_id = new_clan.id
+            clan_id = new_clan.clan_id
 
             # Добавляем пользователя в члены клана
             new_member = ClanMember(clan_id=clan_id, user_id=user_id)
@@ -289,6 +291,7 @@ async def manage_clan(callback: types.CallbackQuery):
             # Формируем список участников клана
             member_list = []
             for member in members:
+
                 text = f"{member.username} - рейтинг{member.rating}🎖️ {'(Лидер)' if member.user_id == leader_id else ''}"
                 member_list.append(text)
             # Отправляем сообщение с участниками клана
@@ -319,11 +322,22 @@ async def handle_top100(callback_query: types.CallbackQuery):
         async with session_maker() as session:
             result = await session.execute(select(User).order_by(User.win_percentage.desc()).limit(100))
             top_users = result.scalars().all()
-
+            global current_item_id
             if top_users:
                 response = "🏆 Топ 100 игроков по соотношению побед:\n"
                 for i, user in enumerate(top_users, start=1):
-                    response += f"{i}. {user.username} - {user.win_percentage}% побед\n"
+                    result2 = await session.execute(
+                        select(Purchase).filter(
+                            Purchase.user_id == user.user_id,
+                            Purchase.item_id == user.item_id  # Добавляем фильтр по item_id
+                        )
+                    )
+
+                    user2 = result2.scalars().first()
+                    if user2 and (user2.item_id > 0):
+                        response += f"{i}. {user.username}{user2.description} - {user.win_percentage}% побед\n"
+                    else:
+                        response += f"{i}. {user.username} - {user.win_percentage}% побед\n"
             else:
                 response = "Пока нет данных для отображения Топ 100."
 
@@ -342,7 +356,18 @@ async def handle_top100rang(callback_query: types.CallbackQuery):
             if top_users:
                 response = "🏆 Топ 100 игроков по рейтингу:\n"
                 for i, user in enumerate(top_users, start=1):
-                    response += f"{i}. {user.username} - {user.rating}🎖️\n"
+                    result2 = await session.execute(
+                        select(Purchase).filter(
+                            Purchase.user_id == user.user_id,
+                            Purchase.item_id == user.item_id  # Добавляем фильтр по item_id
+                        )
+                    )
+
+                    user2 = result2.scalars().first()
+                    if user2 and (user2.item_id > 0):
+                        response += f"{i}. {user.username}{user2.description} - {user.rating}🎖️\n"
+                    else:
+                        response += f"{i}. {user.username} - {user.rating}🎖️\n"
             else:
                 response = "Пока нет данных для отображения Топ 100."
 
@@ -478,6 +503,8 @@ async def handle_buy(callback_query: types.CallbackQuery):
 
 
 
+
+
 # Обработчик кнопки "Покупки"
 @callback_router.callback_query(F.data == 'setting')
 async def handle_purchases(callback_query: types.CallbackQuery):
@@ -492,7 +519,7 @@ async def handle_purchases(callback_query: types.CallbackQuery):
 
             if purchases:
                 # Если покупки есть, формируем список и отправляем
-                response = "🛒 Ваши покупки:\n"
+                response = "🛒 Ваши покупки:\n Нажмите на кнопку, чтобы установить скин"
 
                 # Используем множество для хранения уникальных покупок
                 unique_purchases = {}
@@ -502,21 +529,27 @@ async def handle_purchases(callback_query: types.CallbackQuery):
                     if purchase.name not in unique_purchases:
                         unique_purchases[purchase.name] = purchase.description
 
-                # Формируем клавиатуру с кнопками
-                keyboard = InlineKeyboardMarkup(inline_keyboard=[], row_width=1)
+                    # Формируем клавиатуру с кнопками
+                    keyboard = InlineKeyboardMarkup(inline_keyboard=[], row_width=1)
 
-                back_button = InlineKeyboardButton(
-                    text="Перейти в магазин",
-                    callback_data="shop"
-                )
-                # Добавляем кнопку на клавиатуру
-                keyboard.inline_keyboard.append([back_button])
+                    # Добавляем кнопки для каждой уникальной покупки
+                    for name, description in unique_purchases.items():
+                        button = InlineKeyboardButton(
+                            text=f'{name}{description}',
+                            callback_data=f"purchase_{name}"  # Замените на нужный вам callback_data
+                        )
+                        keyboard.inline_keyboard.append([button])
+                    back_button = [InlineKeyboardButton(
+                        text="Перейти в магазин",
+                        callback_data="shop"
+                    )]
+                    keyboard.inline_keyboard.append(back_button)
 
-                # Формируем ответ на основе уникальных покупок
-                for name, description in unique_purchases.items():
-                    response += f"📦 {name}\nОписание: {description}\n"
+                # # Формируем ответ на основе уникальных покупок
+                # for name, description in unique_purchases.items():
+                #     response += f"📦 {name}\nОписание: {description}\n"
 
-                # Отправляем сообщение с покупками
+                # Отправляем сообщение с покупками и кнопками
                 await callback_query.message.answer(response, reply_markup=keyboard)
             else:
                 # Если покупок нет
@@ -524,6 +557,35 @@ async def handle_purchases(callback_query: types.CallbackQuery):
 
     except Exception as e:
         await callback_query.message.answer(f"Произошла ошибка при получении покупок: {str(e)}")
+
+# Обработчик нажатий на кнопки с покупками
+@callback_router.callback_query(F.data.startswith('purchase_'))
+async def handle_item_selection(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    item_name = (callback_query.data.split('_')[1])  # Извлекаем item_id из callback_data
+    async with session_maker() as session:
+        try:
+            result = await session.execute(select(User).filter(User.user_id == user_id))
+            user = result.scalars().first()
+            result2 = await session.execute(select(Purchase).filter(Purchase.user_id == user_id, Purchase.name == item_name))
+            user2 = result2.scalars().first()
+
+            if user2:
+                user.item_id = user2.item_id  # Предполагается, что у модели User есть поле username
+                await session.commit()
+                await session.refresh(user)
+                await callback_query.message.answer(f"Скин - {user2.name}{user2.description} установлен")
+            else:
+                return
+
+
+        except Exception as e:
+            # Обработка ошибок, например, если произошла ошибка подключения к базе данных
+            return f"Ошибка при получении имени пользователя: {str(e)}"
+
+
+
+
 
 
 # @callback_router.callback_query(ProfileState.waiting_for_username)

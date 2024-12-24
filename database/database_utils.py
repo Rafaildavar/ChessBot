@@ -1,5 +1,7 @@
 # import logging
 # import asyncio
+#
+# from database.orm_query import insert_shop_items, shop_items_data
 # from db import Base, engine
 #
 # # Настройка логирования
@@ -35,6 +37,7 @@
 # async def main():
 #      try:
 #         await initialize_database()
+#         await insert_shop_items(shop_items_data)
 #      finally:
 #          await shutdown()
 #

@@ -42,6 +42,7 @@ class User(Base):
     rating: Mapped[int] = mapped_column(Integer, default=0)
     rang: Mapped[int] = mapped_column(Integer, default=0)
     diamonds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    item_id: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # Связь с таблицей статистики
     statistics: Mapped['Statistic'] = relationship("Statistic", back_populates="user", uselist=False)
 

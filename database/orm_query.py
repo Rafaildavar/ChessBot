@@ -4,11 +4,46 @@ from typing import Optional
 from sqlalchemy.future import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 # from database.db import Statistic
-from database.db import logger
+from database.db import logger, Purchase, ShopItem
 from database.db import session_maker, User
 
 # Словарь для отслеживания количества обновлений статистики
 update_counter = defaultdict(int)
+# Пример использования
+shop_items_data = [
+    {
+        'name': 'Ты клоун',
+        'description': '🤡',
+        'price': 100,
+        'item_type': 'Эмодзи'
+    },
+    {
+        'name': 'Типо звезда',
+        'description': '🤩',
+        'price': 100,
+        'item_type': 'Эмодзи'
+    },
+    {
+        'name': 'Праздник',
+        'description': '🥳',
+        'price': 100,
+        'item_type': 'Эмодзи'
+    },
+    {
+        'name': 'Непон',
+        'description': '🥸',
+        'price': 100,
+        'item_type': 'Эмодзи'
+    },
+    {
+        'name': 'Рот',
+        'description': '🤐',
+        'price': 100,
+        'item_type': 'Эмодзи'
+    }
+]
+
+
 
 
 async def get_user_name(user_id: int) -> str:
@@ -119,3 +154,42 @@ async def add_diamonds_to_user(user_id: int, count : int) -> None:
                 raise ValueError("Пользователь не найден.")
     except(IntegrityError, OperationalError) as e :
         logger.error(f"Ошибка обновления статистики пользователя {user_id}: {e}")
+async def insert_shop_items(items_data):
+    async with session_maker() as session:
+        try:
+            for item_data in items_data:
+                new_item = ShopItem(
+                    name=item_data['name'],
+                    description=item_data['description'],
+                    price=item_data['price'],
+                    item_type=item_data['item_type']
+                )
+                session.add(new_item)
+            await session.commit()
+        except Exception as e:
+            await session.rollback()
+            raise e
+
+
+
+async def get_item_id(user_id: int) -> str:
+    """Получить имя пользователя из базы данных."""
+    async with session_maker() as session:
+        try:
+            result = await session.execute(select(User).filter(User.user_id == user_id))
+            user = result.scalars().first()
+            result2 = await session.execute(
+                select(Purchase).filter(
+                    Purchase.user_id == user.user_id,
+                    Purchase.item_id == user.item_id  # Добавляем фильтр по item_id
+                )
+            )
+
+            user2 = result2.scalars().first()
+            if user:
+                return user2.description  # Предполагается, что у модели User есть поле username
+            else:
+                return ""
+        except Exception as e:
+            # Обработка ошибок, например, если произошла ошибка подключения к базе данных
+            return f"Ошибка при получении имени пользователя: {str(e)}"

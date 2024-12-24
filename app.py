@@ -4,6 +4,7 @@ from aiogram import Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import bot
+
 from handlers.callback_handlers import callback_router
 from handlers.message_handlers import message_router
 from handlers.pre_checkout_query import checkout_router
