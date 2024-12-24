@@ -7,7 +7,7 @@ profile_button = InlineKeyboardButton(text="👤Мой профиль", callback
 clan_button = InlineKeyboardButton(text="🛡Кланы", callback_data="clan")
 friend_game_button = InlineKeyboardButton(text="🎫Приватная игра", callback_data="friendGame")
 setting_button = InlineKeyboardButton(text="🛠Настройки", callback_data="setting")
-top100_button = InlineKeyboardButton(text="🏆Топ 100 игроков", callback_data="top100")
+top100_button = InlineKeyboardButton(text="🏆Таблица лидеров", callback_data="leadersTable")
 shop_button = InlineKeyboardButton(text="💰Магазин", callback_data="shop")
 myBalance_button = InlineKeyboardButton(text="💎Мой баланс", callback_data="myBalance")
 feedback_button = InlineKeyboardButton(text="💬Оставить отзыв", callback_data="feedback")
@@ -43,11 +43,11 @@ keyboards = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Купить 1000💎", callback_data="Bbuy_1000")],
         [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
     ])
-private_board = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Создать код для друга", callback_data="create")],
-        [InlineKeyboardButton(text="Ввести код приглашения", callback_data="get")],
-        [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
-    ])
+# private_board = InlineKeyboardMarkup(inline_keyboard=[
+#         [InlineKeyboardButton(text="Создать код для друга", callback_data="create")],
+#         [InlineKeyboardButton(text="Ввести код приглашения", callback_data="get")],
+#         [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
+#     ])
 
 event_board = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💻 Релиз проекта", callback_data="release_event")],
@@ -58,5 +58,12 @@ claim_gift_board = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text= "Забрать подарок", callback_data="claim_gift")]
      ])
 menu_button = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
+     ])
+
+leaders_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Топ 100 игроков по проценту побед", callback_data="top100")],
+    [InlineKeyboardButton(text="Рейтинг игроков", callback_data="top100rang")] ,
+    [InlineKeyboardButton(text="Рейтинг кланов", callback_data="top100clans")],
     [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
      ])

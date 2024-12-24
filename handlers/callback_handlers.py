@@ -8,6 +8,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
 from chess import Piece
+from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
 
@@ -19,7 +20,7 @@ from database.db import session_maker
 from gameLogic.game import Lobby
 from kbds.State import FeedbackState, ProfileState, ClanState, PublicState,PrivateState
 from kbds.inline import clan_actions, stat_keyboard, main_menu_keyboard, keyboards, event_board, claim_gift_board, \
-   menu_button
+    menu_button, leaders_keyboard
 from utils.game_relation import get_game, board_update, send_board, games, lobbies
 
 callback_router = Router()
@@ -305,6 +306,10 @@ async def manage_clan(callback: types.CallbackQuery):
             logging.error(f"Database error: {e}")
             await callback.message.answer("Произошла ошибка при получении информации о клане.")
 
+# Обработчик кнопки "Кланы"
+@callback_router.callback_query(F.data == "leadersTable")
+async def handle_leaderstable_button(callback: types.CallbackQuery):
+    await callback.message.answer("Выберите действие:", reply_markup=leaders_keyboard)
 
 
 # Обработчик нажатия "Топ 100 игроков"
@@ -325,6 +330,60 @@ async def handle_top100(callback_query: types.CallbackQuery):
         await callback_query.message.answer(response)
     except Exception as e:
         await callback_query.message.answer(f"Произошла ошибка при получении Топ 100: {str(e)}")
+
+# Обработчик нажатия "Топ 100 игроков"
+@callback_router.callback_query(F.data == 'top100rang')
+async def handle_top100rang(callback_query: types.CallbackQuery):
+    try:
+        async with session_maker() as session:
+            result = await session.execute(select(User).order_by(User.rating.desc()).limit(100))
+            top_users = result.scalars().all()
+
+            if top_users:
+                response = "🏆 Топ 100 игроков по рейтингу:\n"
+                for i, user in enumerate(top_users, start=1):
+                    response += f"{i}. {user.username} - {user.rating}🎖️\n"
+            else:
+                response = "Пока нет данных для отображения Топ 100."
+
+        await callback_query.message.answer(response)
+    except Exception as e:
+        await callback_query.message.answer(f"Произошла ошибка при получении Топ 100: {str(e)}")
+
+
+# Обработчик нажатия "Топ 100 кланов"
+@callback_router.callback_query(F.data == 'top100clans')
+async def handle_top100clans(callback_query: types.CallbackQuery):
+    try:
+        async with session_maker() as session:
+            # Запрос для получения топ 100 кланов по сумме рейтинга участников
+            result = await session.execute(
+                select(Clan)
+                .join(ClanMember, Clan.clan_id == ClanMember.clan_id)
+                .join(User, ClanMember.user_id == User.user_id)  # Предполагается, что у вас есть модель User
+                .group_by(Clan.clan_id)
+                .order_by(func.sum(User.rating).desc())
+                .limit(100)
+            )
+            top_clans = result.scalars().all()
+
+            if top_clans:
+                response = "🏆 Топ 100 кланов по сумме рейтинга участников:\n"
+                for i, clan in enumerate(top_clans, start=1):
+                    # Получаем сумму рейтинга участников клана
+                    total_rating = await session.execute(
+                        select(func.sum(User.rating))
+                        .join(ClanMember, ClanMember.user_id == User.user_id)
+                        .where(ClanMember.clan_id == clan.clan_id)
+                    )
+                    total_rating_value = total_rating.scalar() or 0  # Если нет участников, сумма будет 0
+                    response += f"{i}. {clan.name} -  {total_rating_value}🎖️\n"
+            else:
+                response = "Пока нет данных для отображения Топ 100."
+
+        await callback_query.message.answer(response)
+    except Exception as e:
+        await callback_query.message.answer(f"Произошла ошибка при получении Топ 100 кланов: {str(e)}")
 
 
 

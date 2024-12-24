@@ -65,6 +65,8 @@ async def update_user_attributes(user_id: int,user_result:str, isprivate: bool,i
                             elif 'Поражение' in user_result:
                                 user.losses += 1
                                 user.rating -= 1
+                                if user.rating < 0:
+                                    user.rating = 0
                             elif user_result == 'Ничья!':
                                 user.draws += 1
                             user.total_games += 1

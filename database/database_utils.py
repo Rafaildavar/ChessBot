@@ -1,12 +1,12 @@
-import logging
+# import logging
 # import asyncio
-from db import Base, engine
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# # Функция для создания таблиц в базе данных
+# from db import Base, engine
+#
+# # Настройка логирования
+# logging.basicConfig(level=logging.INFO)
+# logger = logging.getLogger(__name__)
+#
+# # # Функция для создания таблиц в базе данных
 # async def initialize_database():
 #     try:
 #         async with engine.begin() as conn:
