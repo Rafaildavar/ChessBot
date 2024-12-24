@@ -111,7 +111,7 @@ async def add_diamonds_to_user(user_id: int, count : int) -> None:
         async with session_maker() as session:
             user = await session.get(User, user_id)
             if user:
-                user.diamonds+=count
+                user.diamonds+=int(count)
 
                 await session.commit()
                 await session.refresh(user)

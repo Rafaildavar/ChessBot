@@ -6,7 +6,7 @@ public_button = InlineKeyboardButton(text="⚔️Обычная игра", callb
 profile_button = InlineKeyboardButton(text="👤Мой профиль", callback_data="profile")
 clan_button = InlineKeyboardButton(text="🛡Кланы", callback_data="clan")
 friend_game_button = InlineKeyboardButton(text="🎫Приватная игра", callback_data="friendGame")
-setting_button = InlineKeyboardButton(text="🛠Настройки", callback_data="setting")
+setting_button = InlineKeyboardButton(text="⚒️Инвентарь", callback_data="setting")
 top100_button = InlineKeyboardButton(text="🏆Таблица лидеров", callback_data="leadersTable")
 shop_button = InlineKeyboardButton(text="💰Магазин", callback_data="shop")
 myBalance_button = InlineKeyboardButton(text="💎Мой баланс", callback_data="myBalance")
@@ -50,7 +50,7 @@ keyboards = InlineKeyboardMarkup(inline_keyboard=[
 #     ])
 
 event_board = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💻 Релиз проекта", callback_data="release_event")],
+        [InlineKeyboardButton(text="📅 Релиз проекта", callback_data="release_event")],
         # [InlineKeyboardButton(text="❄️ Зимний фестиваль", callback_data="winter_festival")],
     ])
 
@@ -62,8 +62,8 @@ menu_button = InlineKeyboardMarkup(inline_keyboard=[
      ])
 
 leaders_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="Топ 100 игроков по проценту побед", callback_data="top100")],
-    [InlineKeyboardButton(text="Рейтинг игроков", callback_data="top100rang")] ,
-    [InlineKeyboardButton(text="Рейтинг кланов", callback_data="top100clans")],
+    [InlineKeyboardButton(text="Топ 100 игроков по проценту побед 💯", callback_data="top100")],
+    [InlineKeyboardButton(text="Рейтинг игроков 👑", callback_data="top100rang")] ,
+    [InlineKeyboardButton(text="Рейтинг кланов ⚔️", callback_data="top100clans")],
     [InlineKeyboardButton(text="Назад", callback_data="back_to_main_menu")]
      ])

@@ -12,7 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.future import select
 
-from database.orm_query import add_diamonds_to_user, get_user_rating
+from database.orm_query import add_diamonds_to_user
 from market.market import buy_options,PAYMENTS_PROVIDER_TOKEN
 from config import bot
 from database.db import User, ClanMember, Clan, ShopItem, Purchase, Statistic
@@ -368,7 +368,7 @@ async def handle_top100clans(callback_query: types.CallbackQuery):
             top_clans = result.scalars().all()
 
             if top_clans:
-                response = "🏆 Топ 100 кланов по сумме рейтинга участников:\n"
+                response = "🏆 Топ 100 кланов:\n"
                 for i, clan in enumerate(top_clans, start=1):
                     # Получаем сумму рейтинга участников клана
                     total_rating = await session.execute(
@@ -452,7 +452,15 @@ async def handle_buy(callback_query: types.CallbackQuery):
                 await callback_query.message.answer(f"У вас недостаточно 💎 для покупки {item.name}.")
                 return
 
-            # Если средств хватает, обновляем баланс
+            # Проверяем, была ли уже покупка этого товара пользователем
+            existing_purchase = await session.execute(
+                select(Purchase).where(Purchase.user_id == user_id, Purchase.item_id == item_id)
+            )
+            if existing_purchase.scalars().first():
+                await callback_query.message.answer(f"Вы уже купили {item.name} {item.description}")
+                return
+
+            # Если средств хватает и товар еще не куплен, обновляем баланс
             user.diamonds -= item.price
 
             # Добавляем запись в таблицу покупок
@@ -463,14 +471,15 @@ async def handle_buy(callback_query: types.CallbackQuery):
             await session.commit()
 
             # Отправляем сообщение о покупке
-            await callback_query.message.answer(f"Вы купили {item.name} за {item.price} 💎!")
-
+            await callback_query.message.answer(f"Вы купили {item.name} {item.description} за {item.price} 💎!")
 
     except Exception as e:
         await callback_query.message.answer(f"Произошла ошибка при обработке покупки: {str(e)}")
 
+
+
 # Обработчик кнопки "Покупки"
-@callback_router.callback_query(F.data == 'purchases')
+@callback_router.callback_query(F.data == 'setting')
 async def handle_purchases(callback_query: types.CallbackQuery):
     user_id = callback_query.from_user.id
     try:
@@ -485,6 +494,14 @@ async def handle_purchases(callback_query: types.CallbackQuery):
                 # Если покупки есть, формируем список и отправляем
                 response = "🛒 Ваши покупки:\n"
 
+                # Используем множество для хранения уникальных покупок
+                unique_purchases = {}
+
+                for purchase in purchases:
+                    # Проверяем, если название уже есть в словаре
+                    if purchase.name not in unique_purchases:
+                        unique_purchases[purchase.name] = purchase.description
+
                 # Формируем клавиатуру с кнопками
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[], row_width=1)
 
@@ -495,8 +512,9 @@ async def handle_purchases(callback_query: types.CallbackQuery):
                 # Добавляем кнопку на клавиатуру
                 keyboard.inline_keyboard.append([back_button])
 
-                for purchase in purchases:
-                    response += f"📦 {purchase.name}\nОписание: {purchase.description}\n"
+                # Формируем ответ на основе уникальных покупок
+                for name, description in unique_purchases.items():
+                    response += f"📦 {name}\nОписание: {description}\n"
 
                 # Отправляем сообщение с покупками
                 await callback_query.message.answer(response, reply_markup=keyboard)

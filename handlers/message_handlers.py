@@ -12,9 +12,11 @@ from config import bot
 from aiogram.types import ContentType
 from database.db import User, Feedback, Statistic
 from database.db import session_maker
+from database.orm_query import add_diamonds_to_user
 from gameLogic.game import Lobby
 from kbds.State import FeedbackState, ProfileState, PrivateState
 from kbds.inline import main_menu_keyboard
+from market.market import buy_options
 from utils.game_relation import lobbies, games
 from utils.game_relation import send_board
 
@@ -107,17 +109,31 @@ async def save_feedback(message: types.Message, state: FSMContext):
             await message.answer(f"Произошла ошибка при сохранении отзыва: {str(e)}")
         finally:
             await state.clear()  # В случае ошибки или успешного добавления отзыва очищаем состояние
+
+
 @message_router.message(F.content_type == ContentType.SUCCESSFUL_PAYMENT)
 async def successful_payment(message: types.Message):
-    payment_info = message.successful_payment.total_amount # Получаем информацию о платеже
-    amount =  payment_info // 100  # Сумма в рублях
-    # payload = payment_info['invoice_payload']  # Полезная нагрузка
+    payment_info = message.successful_payment
+    amount = payment_info.total_amount // 100  # Сумма в рублях
+    payload = payment_info.invoice_payload  # Полезная нагрузка
 
-    await message.answer(f"Оплат на сумму {amount} рублей прошла успешно!")
+    # Извлекаем ID товара из полезной нагрузки
+    item_id = payload.split('_')[1]  # Предполагаем, что полезная нагрузка имеет формат "buy_<item_id>"
+
+    if item_id in buy_options:
+        diamonds = buy_options[item_id]["amount"]  # Количество алмазов
+        diamonds = diamonds.split(' ')[0]
+        # Добавляем алмазы пользователю в БД
+        await add_diamonds_to_user(message.from_user.id, diamonds)
+
+        await message.answer(f"Оплата на сумму {amount} рублей прошла успешно! Вы получили {diamonds} алмазов.")
+    else:
+        await message.answer("Произошла ошибка")
+
 
 # Получение кода игры от пользователя
 @message_router.message()
-async def handle_game_code(message: types.Message,state: FSMContext):
+async def handle_game_code(message: types.Message):
     game_code: str = message.text.strip()
     user_id2: int = message.from_user.id
     if len(game_code) != 5 or not game_code.isdigit():
